@@ -8,6 +8,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.SystemUtils;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import com.google.common.base.Charsets;
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
@@ -235,5 +239,23 @@ public abstract class AbstractID3v2FrameData {
 		} catch (IllegalAccessException e) {
 			throw new IllegalStateException(e);
 		}
+	}
+	
+	
+	@SuppressWarnings("serial")
+    private static final ToStringStyle STYLE = new ToStringStyle() { {
+            this.setUseClassName(false);
+            this.setUseIdentityHashCode(false);
+            this.setUseFieldNames(true);
+            this.setContentStart("[");
+            this.setFieldSeparator(SystemUtils.LINE_SEPARATOR + "\t");
+            this.setFieldSeparatorAtStart(true);
+            this.setContentEnd(SystemUtils.LINE_SEPARATOR + "]");
+	    }
+	};
+
+	public String toString() {
+	    
+	    return ToStringBuilder.reflectionToString(this, STYLE);
 	}
 }

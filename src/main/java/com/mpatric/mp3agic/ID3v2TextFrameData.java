@@ -63,4 +63,9 @@ public class ID3v2TextFrameData extends AbstractID3v2FrameData {
 		else if (! text.equals(other.text)) return false;
 		return true;
 	}
+
+	public String toString() {
+        return this.text;
+    }
+
 }

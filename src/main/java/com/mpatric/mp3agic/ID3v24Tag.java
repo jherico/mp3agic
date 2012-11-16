@@ -27,7 +27,7 @@ public class ID3v24Tag extends AbstractID3v2Tag {
 		bytes[offset + FLAGS_OFFSET] = BufferTools.setBit(bytes[offset + FLAGS_OFFSET], FOOTER_BIT, footer);
 	}
 	
-	protected boolean useFrameUnsynchronisation() {
+	public boolean useFrameUnsynchronisation() {
 		return unsynchronisation;
 	}
 	

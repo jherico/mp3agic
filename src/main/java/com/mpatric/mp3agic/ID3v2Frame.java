@@ -1,6 +1,5 @@
 package com.mpatric.mp3agic;
 
-import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 
 public class ID3v2Frame {

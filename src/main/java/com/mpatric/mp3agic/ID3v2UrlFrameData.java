@@ -90,4 +90,9 @@ public class ID3v2UrlFrameData extends AbstractID3v2FrameData {
 		else if (! description.equals(other.description)) return false;
 		return true;
 	}
+	
+   public String toString() {
+        return this.description + "\t" + this.url;
+    }
+
 }

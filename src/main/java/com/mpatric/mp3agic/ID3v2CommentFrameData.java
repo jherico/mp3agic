@@ -89,4 +89,7 @@ public class ID3v2CommentFrameData extends AbstractID3v2FrameData {
 		return true;
 	}
 
+	public String toString() {
+	    return this.language + "/" + this.description + "/" + this.comment;
+	}
 }

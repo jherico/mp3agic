@@ -1,18 +1,9 @@
 package com.mpatric.mp3agic;
 
+import java.util.List;
 import java.util.Map;
 
 public interface ID3v2 extends ID3v1 {
-	
-	boolean getPadding();
-	void setPadding(boolean padding);
-	
-	boolean hasFooter();
-	void setFooter(boolean footer);
-	
-	boolean hasUnsynchronisation();
-	void setUnsynchronisation(boolean unsynchronisation);
-	
 	String getComposer();
 	void setComposer(String composer);
 	
@@ -38,13 +29,7 @@ public interface ID3v2 extends ID3v1 {
 	void setAlbumImage(byte[] albumImage, String mimeType);
 	String getAlbumImageMimeType();
 	
-	String getItunesComment();
-	void setItunesComment(String itunesComment);
-	
-	int getDataLength();
-	int getLength();
-	boolean getObseleteFormat();
-	
 	Map<String, ID3v2FrameSet> getFrameSets();
+	Map<String, List<String>> getFrameData();
 	void clearFrameSet(String id);
 }

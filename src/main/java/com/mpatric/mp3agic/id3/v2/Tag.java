@@ -1,13 +1,13 @@
-package com.mpatric.mp3agic;
+package com.mpatric.mp3agic.id3.v2;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
@@ -17,120 +17,107 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.primitives.Bytes;
+import com.mpatric.mp3agic.AbstractID3v2FrameData;
+import com.mpatric.mp3agic.BufferTools;
+import com.mpatric.mp3agic.Encoding;
+import com.mpatric.mp3agic.ID3v1Genres;
+import com.mpatric.mp3agic.ID3v2CommentFrameData;
+import com.mpatric.mp3agic.ID3v2Frame;
+import com.mpatric.mp3agic.ID3v2FrameSet;
+import com.mpatric.mp3agic.ID3v2ObseleteFrame;
+import com.mpatric.mp3agic.ID3v2ObseletePictureFrameData;
+import com.mpatric.mp3agic.ID3v2PictureFrameData;
+import com.mpatric.mp3agic.ID3v2TextFrameData;
+import com.mpatric.mp3agic.ID3v2UrlFrameData;
+import com.mpatric.mp3agic.ID3v2UserDefinedTextFrameData;
+import com.mpatric.mp3agic.InvalidDataException;
+import com.mpatric.mp3agic.NoSuchTagException;
+import com.mpatric.mp3agic.NotSupportedException;
+import com.mpatric.mp3agic.UnsupportedTagException;
 import com.mpatric.mp3agic.id3.v2.frames.Frame;
+import com.mpatric.mp3agic.id3.v2.frames.FrameData;
 
 
-public abstract class AbstractID3v2Tag implements ID3v2 {
-
-	public static final String ID_IMAGE = "APIC";
-	public static final String ID_ENCODER = "TENC";
-	public static final String ID_URL = "WXXX";
-	public static final String ID_COPYRIGHT = "TCOP";
-	public static final String ID_ORIGINAL_ARTIST = "TOPE";
-	public static final String ID_COMPOSER = "TCOM";
-	public static final String ID_PUBLISHER = "TPUB";
-	public static final String ID_COMMENT = "COMM";
-	public static final String ID_GENRE = "TCON";
-	public static final String ID_YEAR = "TYER";
-	public static final String ID_ALBUM = "TALB";
-	public static final String ID_TITLE = "TIT2";
-	public static final String ID_ARTIST = "TPE1";
-	public static final String ID_ALBUM_ARTIST = "TPE2";
-	public static final String ID_TRACK = "TRCK";
-	public static final String ID_IMAGE_OBSELETE = "PIC";
-	public static final String ID_ENCODER_OBSELETE = "TEN";
-	public static final String ID_URL_OBSELETE = "WXX";
-	public static final String ID_COPYRIGHT_OBSELETE = "TCR";
-	public static final String ID_ORIGINAL_ARTIST_OBSELETE = "TOA";
-	public static final String ID_COMPOSER_OBSELETE = "TCM";
-	public static final String ID_PUBLISHER_OBSELETE = "TBP";
-	public static final String ID_COMMENT_OBSELETE = "COM";
-	public static final String ID_GENRE_OBSELETE = "TCO";
-	public static final String ID_YEAR_OBSELETE = "TYE";
-	public static final String ID_ALBUM_OBSELETE = "TAL";
-	public static final String ID_TITLE_OBSELETE = "TT2";
-	public static final String ID_ARTIST_OBSELETE = "TP1";
-	public static final String ID_ALBUM_ARTIST_OBSELETE = "TP2";
-	public static final String ID_TRACK_OBSELETE = "TRK";
+public abstract class Tag {
+	public static final byte[] HEADER_TAG = new byte[] { 'I', 'D', '3' };
+    public static final byte[] FOOTER_TAG = new byte[] { '3', 'D', 'I' };
+	public static final int HEADER_LENGTH = 10;
+	public static final int FOOTER_LENGTH = 10;
+	public static final int MAJOR_VERSION_OFFSET = 3;
+	public static final int MINOR_VERSION_OFFSET = 4;
+	public static final int FLAGS_OFFSET = 5;
+	public static final int DATA_LENGTH_OFFSET = 6;
 	
-	protected static final String TAG = "ID3";
-	protected static final String FOOTER_TAG = "3DI";
-	protected static final int HEADER_LENGTH = 10;
-	protected static final int FOOTER_LENGTH = 10;
-	protected static final int MAJOR_VERSION_OFFSET = 3;
-	protected static final int MINOR_VERSION_OFFSET = 4;
-	protected static final int FLAGS_OFFSET = 5;
-	protected static final int DATA_LENGTH_OFFSET = 6;
-	protected static final int FOOTER_BIT = 4;
-	protected static final int EXPERIMENTAL_BIT = 5;
-	protected static final int EXTENDED_HEADER_BIT = 6;
-	protected static final int COMPRESSION_BIT = 6;
-	protected static final int UNSYNCHRONISATION_BIT = 7;
-	protected static final int PADDING_LENGTH = 256;
-	private static final String ITUNES_COMMENT_DESCRIPTION = "iTunNORM";
+	public static final byte FLAG_FOOTER = 0x10;
+	public static final byte FLAG_EXPERIMENTAL = 0x20;
+    public static final byte FLAG_EXTENDED_HEADER = 0x40;
+    public static final byte FLAG_COMPRESSION = 0x40;
+    public static final byte FLAG_UNSYNCHRONISATION = (byte) 0x80;
+    public static final int PADDING_LENGTH = 256;
+    public static final String ITUNES_COMMENT_DESCRIPTION = "iTunNORM";
 	
-	protected boolean unsynchronisation = false;
-	protected boolean extendedHeader = false;
-	protected boolean experimental = false;
-	protected boolean footer = false;
-	protected boolean compression = false;
 	protected boolean padding = false;
-	protected String version = null;
+	protected String version;
 	private int dataLength = 0;
 	private int extendedHeaderLength;
 	private byte[] extendedHeaderData;
+    private byte flags;
 	private boolean obseleteFormat = false;
 	
-	public static final Pattern GENRE_REGEX = Pattern.compile("\\(?(\\d+)\\)?(.*)?"); 
+	private final Map<Frame, FrameData> frameSets = new HashMap<Frame, FrameData>();
 
-	private final Map<String, ID3v2FrameSet> frameSets = new TreeMap<String, ID3v2FrameSet>();
-
-	public AbstractID3v2Tag() {
+	public Tag() {
 	}
 
-	public AbstractID3v2Tag(byte[] bytes) throws NoSuchTagException, UnsupportedTagException, InvalidDataException {
-		this(bytes, false);
-	}
-	
-	public AbstractID3v2Tag(byte[] bytes, boolean obseleteFormat) throws NoSuchTagException, UnsupportedTagException, InvalidDataException {
-		this.obseleteFormat = obseleteFormat;
+	public Tag(byte[] bytes) {
 		unpackTag(bytes);
 	}
 
-	private void unpackTag(byte[] bytes) throws NoSuchTagException, UnsupportedTagException, InvalidDataException {
-		ID3v2TagFactory.sanityCheckTag(bytes);
-		int offset = unpackHeader(bytes);
-		try {
-			if (extendedHeader) {
-				offset = unpackExtendedHeader(bytes, offset);
-			}
-			int framesLength = dataLength;
-			if (footer) framesLength -= 10;
-			offset = unpackFrames(bytes, offset, framesLength);
-			if (footer) {
-				offset = unpackFooter(bytes, dataLength);
-			}
-		} catch (ArrayIndexOutOfBoundsException e) {
-			throw new InvalidDataException("Premature end of tag", e);
+	public static void sanityCheckTag(byte[] bytes) {
+        if (bytes.length < HEADER_LENGTH) {
+            throw new IllegalArgumentException("Buffer too short");
+        }
+        if (!Arrays.equals(HEADER_TAG, Arrays.copyOfRange(bytes, 0, HEADER_TAG.length))) {
+            throw new IllegalArgumentException("Can't find ID3 tag marker in buffer");
+        }
+        if ((0 != (FOOTER_TAG & bytes[FLAGS_OFFSET])) && 
+                !Arrays.equals(HEADER_TAG, Arrays.copyOfRange(bytes, 0, HEADER_TAG.length))) {
+            
+        }
+    }
+
+	private void unpackTag(byte[] bytes) {
+		sanityCheckTag(bytes);
+        int majorVersion = bytes[MAJOR_VERSION_OFFSET];
+        int minorVersion = bytes[MINOR_VERSION_OFFSET];
+        if (majorVersion != 2 && majorVersion != 3 && majorVersion != 4) {
+            throw new IllegalStateException("Unsupported version 2." + majorVersion + "." + minorVersion);
+        }
+        this.flags = bytes[FLAGS_OFFSET]; 
+        this.version = majorVersion + "." + minorVersion;
+        dataLength = BufferTools.unpackSynchsafeInteger(bytes[DATA_LENGTH_OFFSET], bytes[DATA_LENGTH_OFFSET + 1], bytes[DATA_LENGTH_OFFSET + 2], bytes[DATA_LENGTH_OFFSET + 3]);
+        if (dataLength < 1) {
+            throw new IllegalStateException("Zero size tag");
+        }
+        int offset = HEADER_LENGTH;
+		if (0 != (flags & FLAG_EXTENDED_HEADER)) {
+			offset = unpackExtendedHeader(bytes, offset);
+		}
+
+		int frameLength = dataLength;
+		if (0 != (flags & FLAG_FOOTER)) {
+		      if (! FOOTER_TAG.equals(BufferTools.byteBufferToStringIgnoringEncodingIssues(bytes, offset, FOOTER_TAG.length()))) {
+		            throw new InvalidDataException("Invalid footer");
+		        }
+
+            offset = unpackFrames(bytes, offset, dataLength - FOOTER_LENGTH);
+            offset = unpackFooter(bytes, dataLength);
+		} else {
+		    unpackFrames(bytes, offset, dataLength);
 		}
 	}
 
-	private int unpackHeader(byte[] bytes) throws UnsupportedTagException, InvalidDataException {
-		int majorVersion = bytes[MAJOR_VERSION_OFFSET];
-		int minorVersion = bytes[MINOR_VERSION_OFFSET];
-		version = majorVersion + "." + minorVersion;
-		if (majorVersion != 2 && majorVersion != 3 && majorVersion != 4) {
-			throw new UnsupportedTagException("Unsupported version " + version);
-		}
-		unpackFlags(bytes);
-		if ((bytes[FLAGS_OFFSET] & 0x0F) != 0) throw new UnsupportedTagException("Unrecognised bits in header");
-		dataLength = BufferTools.unpackSynchsafeInteger(bytes[DATA_LENGTH_OFFSET], bytes[DATA_LENGTH_OFFSET + 1], bytes[DATA_LENGTH_OFFSET + 2], bytes[DATA_LENGTH_OFFSET + 3]);
-		if (dataLength < 1) throw new InvalidDataException("Zero size tag");
-		return HEADER_LENGTH;
-	}
-
-	protected abstract void unpackFlags(byte[] bytes);
-	
 	private int unpackExtendedHeader(byte[] bytes, int offset) {
 		extendedHeaderLength = BufferTools.unpackSynchsafeInteger(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]) + 4;
 		extendedHeaderData = BufferTools.copyBuffer(bytes, offset + 4, extendedHeaderLength);
@@ -176,13 +163,7 @@ public abstract class AbstractID3v2Tag implements ID3v2 {
 		else return new ID3v2Frame(id, data);
 	}
 	
-	private int unpackFooter(byte[] bytes, int offset) throws InvalidDataException {
-		if (! FOOTER_TAG.equals(BufferTools.byteBufferToStringIgnoringEncodingIssues(bytes, offset, FOOTER_TAG.length()))) {
-			throw new InvalidDataException("Invalid footer");
-		}
-		return FOOTER_LENGTH;
-	}
-	
+
 	public byte[] toBytes() throws NotSupportedException {
 		byte[] bytes = new byte[getLength()];
 		packTag(bytes);
@@ -710,9 +691,9 @@ public abstract class AbstractID3v2Tag implements ID3v2 {
 
 
 	public boolean equals(Object obj) {
-		if (! (obj instanceof AbstractID3v2Tag)) return false;
+		if (! (obj instanceof Tag)) return false;
 		if (super.equals(obj)) return true;
-		AbstractID3v2Tag other = (AbstractID3v2Tag) obj;
+		Tag other = (Tag) obj;
 		if (unsynchronisation != other.unsynchronisation) return false;
 		if (extendedHeader != other.extendedHeader) return false;
 		if (experimental != other.experimental) return false;
